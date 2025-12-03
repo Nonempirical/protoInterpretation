@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="nextword-horizon",
+    name="protoInterpretation",
     version="0.1.0",
     description="A lightweight library for sampling LLM outputs to analyze how the horizon of possible output changes with different prompts",
     author="",

@@ -1,4 +1,4 @@
-# Nextword Horizon
+# ProtoInterpretation
 
 A lightweight library for sampling LLM outputs to analyze how the horizon of possible output changes with different prompts.
 
@@ -26,8 +26,8 @@ In Google Colab, clone the repository and install:
 
 ```python
 # Clone the repository
-!git clone https://github.com/yourusername/nextword-horizon-v2.git
-%cd nextword-horizon-v2
+!git clone https://github.com/yourusername/protoInterpretation.git
+%cd protoInterpretation
 
 # Install dependencies
 !pip install torch transformers umap-learn matplotlib numpy scikit-learn
@@ -40,9 +40,9 @@ Or if you prefer to use it without installation:
 
 ```python
 # Clone and add to path
-!git clone https://github.com/yourusername/nextword-horizon-v2.git
+!git clone https://github.com/yourusername/protoInterpretation.git
 import sys
-sys.path.insert(0, '/content/nextword-horizon-v2')
+sys.path.insert(0, '/content/protoInterpretation')
 
 # Install dependencies
 !pip install torch transformers umap-learn matplotlib numpy scikit-learn
@@ -51,7 +51,7 @@ sys.path.insert(0, '/content/nextword-horizon-v2')
 ## Quick Start
 
 ```python
-from src.nextword_horizon import (
+from src.protoInterpretation import (
     ModelWrapper, 
     SamplingConfig, 
     sample_chain, 
@@ -108,7 +108,7 @@ print(f"Width difference: {metrics2.signature.mean_horizon_width - metrics1.sign
 ## Dimensionality Reduction and Visualization
 
 ```python
-from src.nextword_horizon import project_step_embeddings, plot_step_scatter_2d
+from src.protoInterpretation import project_step_embeddings, plot_step_scatter_2d
 
 # Project embeddings at a specific step
 proj = project_step_embeddings(batch, step=10)
@@ -138,20 +138,21 @@ tokenizer = AutoTokenizer.from_pretrained(model_name)
 model.save_pretrained(temp_dir)
 tokenizer.save_pretrained(temp_dir)
 
-# Use with Nextword Horizon
-from src.nextword_horizon import ModelWrapper
+# Use with ProtoInterpretation
+from src.protoInterpretation import ModelWrapper
 wrapper = ModelWrapper.from_pretrained(temp_dir)
 ```
 
 ## Project Structure
 
 ```
-nextword-horizon-v2/
+protoInterpretation/
 ├── README.md
 ├── requirements.txt
+├── setup.py
 ├── .gitignore
 └── src/
-    └── nextword_horizon/
+    └── protoInterpretation/
         ├── __init__.py
         ├── model.py           # HF model wrapper
         ├── data_structures.py # Core dataclasses
