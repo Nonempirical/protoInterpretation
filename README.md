@@ -12,12 +12,39 @@ A lightweight library for sampling LLM outputs to analyze how the horizon of pos
 
 ## Installation
 
+### Local Installation
+
 ```bash
 pip install -r requirements.txt
+# Or install as a package:
+pip install -e .
 ```
 
-Or install in Colab:
+### Colab Installation
+
+In Google Colab, clone the repository and install:
+
 ```python
+# Clone the repository
+!git clone https://github.com/yourusername/nextword-horizon-v2.git
+%cd nextword-horizon-v2
+
+# Install dependencies
+!pip install torch transformers umap-learn matplotlib numpy scikit-learn
+
+# Install the package (optional - you can also just add to path)
+!pip install -e .
+```
+
+Or if you prefer to use it without installation:
+
+```python
+# Clone and add to path
+!git clone https://github.com/yourusername/nextword-horizon-v2.git
+import sys
+sys.path.insert(0, '/content/nextword-horizon-v2')
+
+# Install dependencies
 !pip install torch transformers umap-learn matplotlib numpy scikit-learn
 ```
 
