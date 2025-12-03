@@ -5,9 +5,9 @@ A lightweight library for sampling LLM outputs to analyze how the horizon of pos
 ## Features
 
 - **Colab-first**: Designed for easy use in Google Colab notebooks
-- **Minimal dependencies**: Just torch, transformers, umap-learn, matplotlib, numpy
+- **Minimal dependencies**: Just torch, transformers, umap-learn, matplotlib, numpy, scikit-learn
 - **Simple API**: Import and use - no heavy CLI or config system
-- **Horizon analysis**: Compute metrics like entropy, diversity, and top-k coverage
+- **Horizon analysis**: Compute metrics like entropy, horizon width, linearity, and KL divergence
 - **Visualizations**: Plot projections, metrics, and comparisons
 
 ## Installation
@@ -24,56 +24,74 @@ Or install in Colab:
 ## Quick Start
 
 ```python
-from src.nextword_horizon import ModelWrapper, sample_chain, compute_horizon_metrics, plot_horizon_metrics
-
-# Load model (supports local paths or HuggingFace hub names)
-model = ModelWrapper("gpt2")  # or "/path/to/local/model"
-
-# Sample outputs for a prompt
-run1 = sample_chain(
-    model=model,
-    prompt="The future of AI is",
-    max_length=30,
-    num_samples=100,
-    temperature=1.0
+from src.nextword_horizon import (
+    ModelWrapper, 
+    SamplingConfig, 
+    sample_chain, 
+    compute_horizon_metrics,
+    plot_entropy_curve,
+    plot_horizon_width,
+    project_step_embeddings,
+    plot_step_scatter_2d
 )
 
+# Load model (supports local paths or HuggingFace hub names)
+model = ModelWrapper.from_pretrained("gpt2")  # or "/path/to/local/model"
+
+# Configure sampling
+cfg = SamplingConfig(
+    num_chains=128,
+    max_steps=32,
+    temperature=1.0,
+    top_k=40,
+    top_p=0.9,
+    store_topk_logits=50,
+    seed=42
+)
+
+# Sample outputs for a prompt
+batch = sample_chain(model, "The future of AI is", cfg)
+
 # Compute horizon metrics
-metrics = compute_horizon_metrics(run1)
-print(f"Entropy: {metrics.entropy:.2f} bits")
-print(f"Unique tokens: {metrics.unique_tokens}")
-print(f"Unique sequences: {metrics.unique_sequences}")
+metrics = compute_horizon_metrics(batch)
+print(f"Mean entropy: {metrics.signature.mean_entropy:.2f} bits")
+print(f"Mean horizon width: {metrics.signature.mean_horizon_width:.4f}")
 
 # Visualize metrics
-plot_horizon_metrics(metrics)
+plot_entropy_curve(metrics)
+plot_horizon_width(metrics)
 ```
 
 ## Compare Different Prompts
 
 ```python
 # Sample with different prompts
-run1 = sample_chain(model, "The future of AI is", num_samples=100)
-run2 = sample_chain(model, "The future of AI will be", num_samples=100)
+batch1 = sample_chain(model, "The future of AI is", cfg)
+batch2 = sample_chain(model, "The future of AI will be", cfg)
 
-# Compare horizons
-from src.nextword_horizon import compare_horizons, plot_comparison
+# Compute metrics for each
+metrics1 = compute_horizon_metrics(batch1)
+metrics2 = compute_horizon_metrics(batch2)
 
-comparison = compare_horizons(run1, run2)
-plot_comparison(run1, run2, label1="is", label2="will be")
+# Compare signatures
+print(f"Entropy difference: {metrics2.signature.mean_entropy - metrics1.signature.mean_entropy:.2f}")
+print(f"Width difference: {metrics2.signature.mean_horizon_width - metrics1.signature.mean_horizon_width:.4f}")
 ```
 
-## Dimensionality Reduction
+## Dimensionality Reduction and Visualization
 
 ```python
-from src.nextword_horizon import project_logits_pca, project_logits_umap, plot_projection
+from src.nextword_horizon import project_step_embeddings, plot_step_scatter_2d
 
-# Project logits to 2D using PCA
-pca_result = project_logits_pca(run1, n_components=2)
-plot_projection(pca_result, title="PCA Projection")
+# Project embeddings at a specific step
+proj = project_step_embeddings(batch, step=10)
 
-# Or use UMAP
-umap_result = project_logits_umap(run1, n_components=2)
-plot_projection(umap_result, title="UMAP Projection")
+# Plot 2D scatter with cluster labels
+plot_step_scatter_2d(proj, labels=metrics.clusters.labels)
+
+# Access diagnostics
+print(f"Trustworthiness: {proj.diagnostics.get('trustworthiness', 'N/A')}")
+print(f"Distance correlation: {proj.diagnostics.get('distance_correlation', 'N/A')}")
 ```
 
 ## Using Local Models in Colab
@@ -82,7 +100,6 @@ plot_projection(umap_result, title="UMAP Projection")
 # Download model to temp directory
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import tempfile
-import os
 
 temp_dir = tempfile.mkdtemp()
 model_name = "gpt2"
@@ -96,7 +113,7 @@ tokenizer.save_pretrained(temp_dir)
 
 # Use with Nextword Horizon
 from src.nextword_horizon import ModelWrapper
-wrapper = ModelWrapper(temp_dir)
+wrapper = ModelWrapper.from_pretrained(temp_dir)
 ```
 
 ## Project Structure
@@ -120,4 +137,3 @@ nextword-horizon-v2/
 ## License
 
 MIT
-
