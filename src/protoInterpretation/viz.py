@@ -358,6 +358,7 @@ def plot_animated_umap(
     marker_size: int = 5,
     opacity: float = 0.8,
     margin_factor: float = 0.05,
+    animation_frame_duration: int = 100,
 ) -> "px.scatter":
     """
     Create an animated Plotly scatter plot showing how embeddings evolve over steps.
@@ -372,6 +373,7 @@ def plot_animated_umap(
         marker_size: Size of scatter points
         opacity: Opacity of scatter points
         margin_factor: Factor for adding margins to axis ranges
+        animation_frame_duration: Duration of each frame in milliseconds (lower = faster)
     
     Returns:
         Plotly figure object
@@ -400,5 +402,17 @@ def plot_animated_umap(
         height=height,
         legend=dict(font=dict(size=10)),
     )
+    
+    # Set animation speed
+    if len(fig.frames) > 0 and len(fig.layout.updatemenus) > 0:
+        # Update frame duration for animation
+        # The args[1] contains the frame and transition settings
+        if len(fig.layout.updatemenus[0].buttons) > 0:
+            button_args = fig.layout.updatemenus[0].buttons[0].args
+            if len(button_args) > 1 and isinstance(button_args[1], dict):
+                if "frame" in button_args[1]:
+                    button_args[1]["frame"]["duration"] = animation_frame_duration
+                if "transition" in button_args[1]:
+                    button_args[1]["transition"]["duration"] = animation_frame_duration
     
     return fig
