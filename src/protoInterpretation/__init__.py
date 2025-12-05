@@ -22,6 +22,7 @@ from .io import (
     save_metrics_json,
 )
 from .comparison import compare_runs
+from .research_guide import print_research_guide
 
 # Re-export key dataclasses for convenience
 from .data_structures import (
