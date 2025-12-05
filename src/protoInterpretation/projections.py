@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple, List
 
 import numpy as np
 from sklearn.decomposition import PCA
@@ -164,3 +164,71 @@ def project_step_embeddings(
             "umap_min_dist": umap_min_dist,
         },
     )
+
+
+def compute_global_umap(
+    embeddings_per_run: Dict[str, np.ndarray],
+    max_steps: Optional[int] = None,
+    pca_components: int = 50,
+    umap_n_neighbors: int = 30,
+    umap_min_dist: float = 0.1,
+    umap_random_state: int = 0,
+) -> Tuple[np.ndarray, List[str], List[int]]:
+    """
+    Compute a global UMAP projection over all steps and all runs.
+    This creates a unified embedding space for animation.
+    
+    Args:
+        embeddings_per_run: Dictionary mapping run names to embeddings [N, T, D]
+        max_steps: Maximum number of steps to include (None = use minimum T across runs)
+        pca_components: Number of PCA components
+        umap_n_neighbors: UMAP n_neighbors parameter
+        umap_min_dist: UMAP min_dist parameter
+        umap_random_state: Random state for reproducibility
+    
+    Returns:
+        Tuple of:
+            - 2D embeddings [total_points, 2]
+            - Run labels [total_points] (list of run names)
+            - Step labels [total_points] (list of step indices)
+    """
+    if umap is None:
+        raise ImportError("umap-learn is required for global UMAP computation")
+    
+    # Find minimum T across all runs
+    min_T = min(emb.shape[1] for emb in embeddings_per_run.values())
+    if max_steps is not None:
+        min_T = min(min_T, max_steps)
+    
+    # Get embedding dimension
+    D = next(iter(embeddings_per_run.values())).shape[2]
+    
+    # Flatten all embeddings into one big matrix
+    all_chunks = []
+    run_labels = []
+    step_labels = []
+    
+    for name, emb in embeddings_per_run.items():
+        N, T, D_ = emb.shape
+        for t in range(min_T):
+            E_t = emb[:, t, :]  # [N, D]
+            all_chunks.append(E_t)
+            run_labels.extend([name] * N)
+            step_labels.extend([t] * N)
+    
+    E_flat = np.vstack(all_chunks)  # [sum(N * min_T), D]
+    
+    # PCA + UMAP
+    n_pca = min(pca_components, D, E_flat.shape[0])
+    pca = PCA(n_components=n_pca, random_state=0)
+    E_pca = pca.fit_transform(E_flat)
+    
+    reducer = umap.UMAP(
+        n_neighbors=umap_n_neighbors,
+        min_dist=umap_min_dist,
+        n_components=2,
+        random_state=umap_random_state,
+    )
+    E_2d = reducer.fit_transform(E_pca)  # [total_points, 2]
+    
+    return E_2d, run_labels, step_labels

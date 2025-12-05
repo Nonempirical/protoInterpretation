@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import asdict
+from datetime import datetime
 from typing import List, Optional, Tuple
 
 import numpy as np
@@ -195,9 +197,17 @@ def sample_chains_for_prompt(
     # Simple step mask: everything is "real" (no early stopping yet)
     step_mask = np.ones_like(token_ids, dtype=np.int32)
 
+    # Convert sampling_cfg to dict
+    sampling_dict = asdict(sampling_cfg)
+
+    # Expand meta with all relevant information
     meta = {
         "model_name_or_path": model.config.model_name_or_path,
-        "sampling_config": sampling_cfg,
+        "sampling_config": sampling_dict,
+        "prompt_text": prompt_spec.text,
+        "prompt_label": prompt_spec.label,
+        "seed": sampling_cfg.seed,
+        "created_at": datetime.now().isoformat(),
     }
 
     batch = ChainBatch(
