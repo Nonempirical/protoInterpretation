@@ -75,6 +75,10 @@ class ChainBatch:
     # 1 if this position is a "real" generated token (not padding), 0 otherwise.
     step_mask: Optional[np.ndarray] = None        # shape: [N, T]
 
+    # Decoded text sequences (full prompt + generated tokens as strings)
+    # One string per chain containing the complete text
+    text_sequences: Optional[List[str]] = None     # length: N
+
     # Any extra info (e.g. RNG seeds, model name, etc.)
     meta: Dict[str, Any] = field(default_factory=dict)
 

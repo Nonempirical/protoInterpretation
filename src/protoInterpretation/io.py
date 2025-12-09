@@ -100,6 +100,14 @@ def load_run_from_npz(run_path: str, compute_metrics: bool = True) -> Tuple[Chai
     if topk_logits.size == 0:
         topk_logits = None
     
+    # Handle text sequences (may not exist in older files)
+    text_sequences = None
+    if "text_sequences" in data:
+        text_seq_array = data["text_sequences"]
+        if text_seq_array.size > 0:
+            # Convert numpy array of objects to list of strings
+            text_sequences = [str(seq) for seq in text_seq_array]
+    
     # Create ChainBatch
     batch = ChainBatch(
         prompt=PromptSpec(text=prompt_text, label=prompt_label),
@@ -109,6 +117,7 @@ def load_run_from_npz(run_path: str, compute_metrics: bool = True) -> Tuple[Chai
         topk_token_ids=topk_token_ids,
         topk_logits=topk_logits,
         step_mask=data["step_mask"],
+        text_sequences=text_sequences,
         meta={"run_dir": run_path},
     )
     
@@ -197,6 +206,12 @@ def save_batch_npz(
     os.makedirs(os.path.dirname(output_path) if os.path.dirname(output_path) else ".", exist_ok=True)
     
     # Save only numeric arrays (no meta)
+    # Text sequences are saved as a structured array
+    text_sequences_array = np.array(
+        batch.text_sequences if batch.text_sequences else [],
+        dtype=object
+    )
+    
     np.savez(
         output_path,
         prompt_text=batch.prompt.text,
@@ -207,6 +222,7 @@ def save_batch_npz(
         topk_token_ids=batch.topk_token_ids if batch.topk_token_ids is not None else np.array([]),
         topk_logits=batch.topk_logits if batch.topk_logits is not None else np.array([]),
         step_mask=batch.step_mask if batch.step_mask is not None else np.array([]),
+        text_sequences=text_sequences_array,
     )
 
 

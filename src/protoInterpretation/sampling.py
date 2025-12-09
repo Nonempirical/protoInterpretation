@@ -197,6 +197,15 @@ def sample_chains_for_prompt(
     # Simple step mask: everything is "real" (no early stopping yet)
     step_mask = np.ones_like(token_ids, dtype=np.int32)
 
+    # Decode tokens to text sequences
+    # Each chain: prompt_token_ids + generated token_ids
+    text_sequences = []
+    for i in range(num_chains):
+        # Combine prompt tokens with generated tokens for this chain
+        full_token_sequence = list(prompt_token_ids_list) + batch_token_ids[i]
+        decoded_text = model.decode(full_token_sequence)
+        text_sequences.append(decoded_text)
+
     # Convert sampling_cfg to dict
     sampling_dict = asdict(sampling_cfg)
 
@@ -218,6 +227,7 @@ def sample_chains_for_prompt(
         topk_token_ids=topk_token_ids,
         topk_logits=topk_logits,
         step_mask=step_mask,
+        text_sequences=text_sequences,
         meta=meta,
     )
     return batch

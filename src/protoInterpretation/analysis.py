@@ -441,3 +441,63 @@ def compute_horizon_metrics(
     )
 
     return metrics
+
+
+# -------------------------
+# Cumulative sequence embeddings
+# -------------------------
+
+def compute_cumulative_embeddings(
+    batch: ChainBatch,
+    method: str = "mean",
+    alpha: float = 0.9,
+) -> np.ndarray:
+    """
+    Compute cumulative/aggregated embeddings representing the entire sequence up to each step.
+    
+    For each step t, creates an embedding that aggregates information from steps 0 to t.
+    
+    Args:
+        batch: ChainBatch with embeddings [N, T, D]
+        method: Aggregation method:
+            - "mean": Simple mean pooling over all steps up to t
+            - "ema": Exponential moving average (more weight on recent steps)
+            - "sum": Sum of all embeddings up to t
+        alpha: Smoothing factor for EMA (only used if method="ema")
+            Higher alpha (closer to 1) = more weight on recent steps
+    
+    Returns:
+        Cumulative embeddings [N, T, D] where each [n, t, :] represents
+        the aggregated embedding for chain n up to step t
+    """
+    embeddings = batch.embeddings  # [N, T, D]
+    N, T, D = embeddings.shape
+    
+    cumulative = np.zeros_like(embeddings, dtype=np.float32)
+    
+    if method == "mean":
+        # Mean pooling: average all embeddings from step 0 to t
+        for t in range(T):
+            cumulative[:, t, :] = embeddings[:, :t+1, :].mean(axis=1)
+    
+    elif method == "ema":
+        # Exponential moving average
+        # First step is just the first embedding
+        cumulative[:, 0, :] = embeddings[:, 0, :]
+        
+        # Subsequent steps: weighted combination of previous cumulative and current
+        for t in range(1, T):
+            cumulative[:, t, :] = (
+                alpha * embeddings[:, t, :] + 
+                (1 - alpha) * cumulative[:, t-1, :]
+            )
+    
+    elif method == "sum":
+        # Sum all embeddings from step 0 to t
+        for t in range(T):
+            cumulative[:, t, :] = embeddings[:, :t+1, :].sum(axis=1)
+    
+    else:
+        raise ValueError(f"Unknown method: {method}. Choose from 'mean', 'ema', or 'sum'")
+    
+    return cumulative
