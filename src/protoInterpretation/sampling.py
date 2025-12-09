@@ -140,16 +140,27 @@ def sample_chains_for_prompt(
     topk_ids_steps: List[torch.Tensor] = []    # each: [N, K]
     topk_logits_steps: List[torch.Tensor] = [] # each: [N, K]
     token_ids_steps: List[torch.Tensor] = []   # each: [N]
+    attention_steps: List[Optional[torch.Tensor]] = []  # each: [N, L] where L grows
 
     # Main generation loop
     for step in range(max_steps):
-        # 1) Get logits + embedding for current sequences
-        logits_next, last_hidden = model.get_logits_and_embeddings(batch_token_ids)
+        # 1) Get logits + embedding + attention weights for current sequences
+        logits_next, last_hidden, attention_pattern = model.get_logits_and_embeddings(
+            batch_token_ids,
+            output_attentions=sampling_cfg.store_attention_weights
+        )
         # logits_next: [N, V]
         # last_hidden: [N, D]
+        # attention_pattern: [N, L] or None (weighted average across heads)
 
         # 2) Store embeddings
         embeddings_steps.append(last_hidden.detach().cpu())
+        
+        # 3) Store attention pattern (weighted average across heads)
+        if sampling_cfg.store_attention_weights and attention_pattern is not None:
+            attention_steps.append(attention_pattern.detach().cpu())
+        else:
+            attention_steps.append(None)
 
         # 3) Store top-k logits if requested
         if sampling_cfg.store_topk_logits > 0:
@@ -197,6 +208,31 @@ def sample_chains_for_prompt(
     # Simple step mask: everything is "real" (no early stopping yet)
     step_mask = np.ones_like(token_ids, dtype=np.int32)
 
+    # Process attention weights (pad to max sequence length)
+    attention_weights = None
+    if sampling_cfg.store_attention_weights and any(attn is not None for attn in attention_steps):
+        # Calculate max sequence length (prompt + max_steps)
+        max_seq_len = len(prompt_token_ids_list) + max_steps
+        
+        # Pad attention patterns to max_seq_len
+        attention_weights_padded = []
+        for attn in attention_steps:
+            if attn is not None:
+                # attn: [N, L] where L varies (grows each step)
+                N, L = attn.shape
+                padded = torch.zeros(N, max_seq_len, dtype=attn.dtype)
+                # Only copy valid positions (up to current sequence length)
+                padded[:, :L] = attn
+                attention_weights_padded.append(padded)
+            else:
+                # If None, create zero tensor
+                N = num_chains
+                attention_weights_padded.append(torch.zeros(N, max_seq_len))
+        
+        # Stack: [T, N, max_seq_len] → [N, T, max_seq_len]
+        attention_tensor = torch.stack(attention_weights_padded, dim=0).permute(1, 0, 2)
+        attention_weights = attention_tensor.numpy().astype(np.float32)
+
     # Decode tokens to text sequences
     # Each chain: prompt_token_ids + generated token_ids
     text_sequences = []
@@ -228,6 +264,7 @@ def sample_chains_for_prompt(
         topk_logits=topk_logits,
         step_mask=step_mask,
         text_sequences=text_sequences,
+        attention_weights=attention_weights,
         meta=meta,
     )
     return batch

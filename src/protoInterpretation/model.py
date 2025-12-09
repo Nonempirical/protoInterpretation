@@ -148,12 +148,15 @@ class HFModelAdapter:
     def get_logits_and_embeddings(
         self,
         batch_token_ids: List[List[int]],
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        output_attentions: bool = False,
+    ) -> Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
         """
         Given a batch of token ID sequences, returns:
 
         - next_token_logits: [B, V]    (logits for next token)
         - last_hidden:       [B, D]    (last token hidden state)
+        - attention_weights: Optional [B, L] weighted average attention from last token
+                            (averaged across heads, only last layer)
 
         The model is run once on the padded batch.
         """
@@ -163,6 +166,7 @@ class HFModelAdapter:
             input_ids=input_ids,
             attention_mask=attention_mask,
             output_hidden_states=True,
+            output_attentions=output_attentions,
         )
 
         # Logits for all positions: [B, L, V]
@@ -175,4 +179,16 @@ class HFModelAdapter:
         next_token_logits = logits[:, -1, :]          # [B, V]
         last_hidden = hidden_states[-1][:, -1, :]     # [B, D]
 
-        return next_token_logits, last_hidden
+        # Extract and process attention weights if requested
+        attention_weights = None
+        if output_attentions and outputs.attentions is not None:
+            # Get last layer attention: [B, H, L, L]
+            last_layer_attn = outputs.attentions[-1]
+            
+            # Get attention from last token to all tokens: [B, H, L]
+            last_token_attn = last_layer_attn[:, :, -1, :]
+            
+            # Weighted average across heads: [B, L]
+            attention_weights = last_token_attn.mean(dim=1)
+
+        return next_token_logits, last_hidden, attention_weights

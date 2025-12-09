@@ -108,6 +108,13 @@ def load_run_from_npz(run_path: str, compute_metrics: bool = True) -> Tuple[Chai
             # Convert numpy array of objects to list of strings
             text_sequences = [str(seq) for seq in text_seq_array]
     
+    # Handle attention weights (may not exist in older files)
+    attention_weights = None
+    if "attention_weights" in data:
+        attn_array = data["attention_weights"]
+        if attn_array.size > 0:
+            attention_weights = attn_array
+    
     # Create ChainBatch
     batch = ChainBatch(
         prompt=PromptSpec(text=prompt_text, label=prompt_label),
@@ -118,6 +125,7 @@ def load_run_from_npz(run_path: str, compute_metrics: bool = True) -> Tuple[Chai
         topk_logits=topk_logits,
         step_mask=data["step_mask"],
         text_sequences=text_sequences,
+        attention_weights=attention_weights,
         meta={"run_dir": run_path},
     )
     
@@ -223,6 +231,7 @@ def save_batch_npz(
         topk_logits=batch.topk_logits if batch.topk_logits is not None else np.array([]),
         step_mask=batch.step_mask if batch.step_mask is not None else np.array([]),
         text_sequences=text_sequences_array,
+        attention_weights=batch.attention_weights if batch.attention_weights is not None else np.array([]),
     )
 
 

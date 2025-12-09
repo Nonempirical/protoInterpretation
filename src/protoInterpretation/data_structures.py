@@ -24,6 +24,9 @@ class SamplingConfig:
 
     # How many logits to keep per step (for analysis/KL).
     store_topk_logits: int = 50
+    
+    # Store attention weights (weighted average across heads, last layer only)
+    store_attention_weights: bool = False
 
 
 @dataclass
@@ -78,6 +81,12 @@ class ChainBatch:
     # Decoded text sequences (full prompt + generated tokens as strings)
     # One string per chain containing the complete text
     text_sequences: Optional[List[str]] = None     # length: N
+
+    # Attention weights: weighted average (across heads) from last token to all tokens
+    # Shape: [N, T, max_seq_len] where max_seq_len = prompt_len + max_steps
+    # Each [n, t, :] contains attention pattern from token at step t to all previous tokens
+    # Only stored if SamplingConfig.store_attention_weights=True
+    attention_weights: Optional[np.ndarray] = None  # [N, T, max_seq_len]
 
     # Any extra info (e.g. RNG seeds, model name, etc.)
     meta: Dict[str, Any] = field(default_factory=dict)
