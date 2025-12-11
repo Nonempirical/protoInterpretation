@@ -208,7 +208,7 @@ def sample_chains_for_prompt(
         topk_ids_tensor = torch.stack(topk_ids_steps, dim=0).permute(1, 0, 2)       # [N, T, K]
         topk_logits_tensor = torch.stack(topk_logits_steps, dim=0).permute(1, 0, 2) # [N, T, K]
         topk_token_ids = topk_ids_tensor.numpy().astype(np.int64)
-        topk_logits = topk_logits_tensor.numpy().astype(np.float32)
+        topk_logits = topk_logits_tensor.float().numpy().astype(np.float32)
     else:
         topk_token_ids = None
         topk_logits = None
