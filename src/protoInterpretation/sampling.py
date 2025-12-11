@@ -201,7 +201,7 @@ def sample_chains_for_prompt(
 
     # embeddings_steps: list of [N, D] → [T, N, D] → [N, T, D]
     embeddings_tensor = torch.stack(embeddings_steps, dim=0).permute(1, 0, 2)  # [N, T, D]
-    embeddings = embeddings_tensor.numpy().astype(np.float32)
+    embeddings = embeddings_tensor.float().numpy().astype(np.float32)
 
     # top-k
     if sampling_cfg.store_topk_logits > 0 and len(topk_ids_steps) > 0:
@@ -239,7 +239,7 @@ def sample_chains_for_prompt(
         
         # Stack: [T, N, max_seq_len] → [N, T, max_seq_len]
         attention_tensor = torch.stack(attention_weights_padded, dim=0).permute(1, 0, 2)
-        attention_weights = attention_tensor.numpy().astype(np.float32)
+        attention_weights = attention_tensor.float().numpy().astype(np.float32)
 
     # Decode tokens to text sequences (full sequences)
     # Each chain: batch_token_ids[i] already contains prompt + generated tokens
