@@ -108,6 +108,21 @@ def load_run_from_npz(run_path: str, compute_metrics: bool = True) -> Tuple[Chai
             # Convert numpy array of objects to list of strings
             text_sequences = [str(seq) for seq in text_seq_array]
     
+    # Handle text_per_step (may not exist in older files)
+    text_per_step = None
+    if "text_per_step" in data:
+        text_per_step_array = data["text_per_step"]
+        if text_per_step_array.size > 0:
+            # Convert numpy array of objects to nested list: [N, T]
+            # text_per_step_array is shape [N] where each element is a list of T strings
+            text_per_step = []
+            for chain_texts in text_per_step_array:
+                if isinstance(chain_texts, np.ndarray):
+                    chain_texts_list = [str(t) for t in chain_texts]
+                else:
+                    chain_texts_list = [str(t) for t in chain_texts] if isinstance(chain_texts, (list, tuple)) else [str(chain_texts)]
+                text_per_step.append(chain_texts_list)
+    
     # Handle attention weights (may not exist in older files)
     attention_weights = None
     if "attention_weights" in data:
@@ -125,6 +140,7 @@ def load_run_from_npz(run_path: str, compute_metrics: bool = True) -> Tuple[Chai
         topk_logits=topk_logits,
         step_mask=data["step_mask"],
         text_sequences=text_sequences,
+        text_per_step=text_per_step,
         attention_weights=attention_weights,
         meta={"run_dir": run_path},
     )
@@ -158,21 +174,31 @@ def load_run_by_name(run_name: str, runs: Dict[str, str], compute_metrics: bool 
 def load_embeddings_from_runs(
     run_names: List[str],
     runs: Dict[str, str],
-) -> Tuple[Dict[str, np.ndarray], int, int]:
+    load_text_per_step: bool = False,
+) -> Tuple[Dict[str, np.ndarray], int, int] | Tuple[Dict[str, np.ndarray], Dict[str, List[List[str]]], int, int]:
     """
     Load embeddings from multiple runs for animation/comparison.
     
     Args:
         run_names: List of run names to load
         runs: Dictionary mapping run names to paths (from scan_runs)
+        load_text_per_step: If True, also load text_per_step for each run
     
     Returns:
-        Tuple of:
-            - Dictionary mapping run names to embeddings [N, T, D]
-            - Minimum T across all runs
-            - Embedding dimension D
+        If load_text_per_step=False:
+            Tuple of:
+                - Dictionary mapping run names to embeddings [N, T, D]
+                - Minimum T across all runs
+                - Embedding dimension D
+        If load_text_per_step=True:
+            Tuple of:
+                - Dictionary mapping run names to embeddings [N, T, D]
+                - Dictionary mapping run names to text_per_step [N, T] (list of lists)
+                - Minimum T across all runs
+                - Embedding dimension D
     """
     emb_per_run = {}
+    text_per_step_per_run = {} if load_text_per_step else None
     min_T = None
     D = None
     
@@ -188,11 +214,31 @@ def load_embeddings_from_runs(
         emb = data["embeddings"]  # [N, T, D]
         emb_per_run[name] = emb
         
+        if load_text_per_step:
+            # Load text_per_step if available
+            if "text_per_step" in data and data["text_per_step"].size > 0:
+                text_per_step_array = data["text_per_step"]
+                # Convert numpy array to nested list
+                text_per_step = []
+                for chain_texts in text_per_step_array:
+                    if isinstance(chain_texts, np.ndarray):
+                        chain_texts_list = [str(t) for t in chain_texts]
+                    else:
+                        chain_texts_list = [str(t) for t in chain_texts] if isinstance(chain_texts, (list, tuple)) else [str(chain_texts)]
+                    text_per_step.append(chain_texts_list)
+                text_per_step_per_run[name] = text_per_step
+            else:
+                # Fallback: use None if not available
+                text_per_step_per_run[name] = None
+        
         N, T, D_ = emb.shape
         D = D_ if D is None else D
         min_T = T if min_T is None else min(min_T, T)
     
-    return emb_per_run, min_T, D
+    if load_text_per_step:
+        return emb_per_run, text_per_step_per_run, min_T, D
+    else:
+        return emb_per_run, min_T, D
 
 
 # -------------------------
@@ -220,6 +266,12 @@ def save_batch_npz(
         dtype=object
     )
     
+    # Save text_per_step as array of arrays
+    text_per_step_array = np.array(
+        batch.text_per_step if batch.text_per_step else [],
+        dtype=object
+    )
+    
     np.savez(
         output_path,
         prompt_text=batch.prompt.text,
@@ -231,6 +283,7 @@ def save_batch_npz(
         topk_logits=batch.topk_logits if batch.topk_logits is not None else np.array([]),
         step_mask=batch.step_mask if batch.step_mask is not None else np.array([]),
         text_sequences=text_sequences_array,
+        text_per_step=text_per_step_array,
         attention_weights=batch.attention_weights if batch.attention_weights is not None else np.array([]),
     )
 

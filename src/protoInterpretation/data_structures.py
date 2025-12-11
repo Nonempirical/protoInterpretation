@@ -26,7 +26,7 @@ class SamplingConfig:
     store_topk_logits: int = 50
     
     # Store attention weights (weighted average across heads, last layer only)
-    store_attention_weights: bool = False
+    store_attention_weights: bool = True
 
 
 @dataclass
@@ -81,6 +81,11 @@ class ChainBatch:
     # Decoded text sequences (full prompt + generated tokens as strings)
     # One string per chain containing the complete text
     text_sequences: Optional[List[str]] = None     # length: N
+
+    # Decoded text up to each step for each chain
+    # text_per_step[chain_idx][step] = text up to and including step
+    # Shape: [N, T] where each element is a string
+    text_per_step: Optional[List[List[str]]] = None  # shape: [N, T]
 
     # Attention weights: weighted average (across heads) from last token to all tokens
     # Shape: [N, T, max_seq_len] where max_seq_len = prompt_len + max_steps

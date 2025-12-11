@@ -141,6 +141,7 @@ def sample_chains_for_prompt(
     topk_logits_steps: List[torch.Tensor] = [] # each: [N, K]
     token_ids_steps: List[torch.Tensor] = []   # each: [N]
     attention_steps: List[Optional[torch.Tensor]] = []  # each: [N, L] where L grows
+    text_per_step: List[List[str]] = []  # each: [N] list of strings
 
     # Main generation loop
     for step in range(max_steps):
@@ -182,6 +183,13 @@ def sample_chains_for_prompt(
         next_token_ids_list = next_token_ids.tolist()
         for i in range(num_chains):
             batch_token_ids[i].append(int(next_token_ids_list[i]))
+        
+        # 6) Decode text up to this step for each chain
+        step_texts = []
+        for i in range(num_chains):
+            decoded_text = model.decode(batch_token_ids[i])
+            step_texts.append(decoded_text)
+        text_per_step.append(step_texts)
 
     # -------------------------
     # Stack and convert to numpy
@@ -233,14 +241,24 @@ def sample_chains_for_prompt(
         attention_tensor = torch.stack(attention_weights_padded, dim=0).permute(1, 0, 2)
         attention_weights = attention_tensor.numpy().astype(np.float32)
 
-    # Decode tokens to text sequences
-    # Each chain: prompt_token_ids + generated token_ids
+    # Decode tokens to text sequences (full sequences)
+    # Each chain: batch_token_ids[i] already contains prompt + generated tokens
     text_sequences = []
     for i in range(num_chains):
-        # Combine prompt tokens with generated tokens for this chain
-        full_token_sequence = list(prompt_token_ids_list) + batch_token_ids[i]
-        decoded_text = model.decode(full_token_sequence)
+        # batch_token_ids[i] already contains prompt_token_ids + generated tokens
+        decoded_text = model.decode(batch_token_ids[i])
         text_sequences.append(decoded_text)
+    
+    # Convert text_per_step from [T, N] to [N, T] format
+    # text_per_step is currently: [[chain0_step0, chain1_step0, ...], [chain0_step1, chain1_step1, ...], ...]
+    # We want: [[chain0_step0, chain0_step1, ...], [chain1_step0, chain1_step1, ...], ...]
+    text_per_step_transposed: List[List[str]] = []
+    if text_per_step:
+        for chain_idx in range(num_chains):
+            chain_texts = [text_per_step[step][chain_idx] for step in range(max_steps)]
+            text_per_step_transposed.append(chain_texts)
+    else:
+        text_per_step_transposed = None
 
     # Convert sampling_cfg to dict
     sampling_dict = asdict(sampling_cfg)
@@ -264,6 +282,7 @@ def sample_chains_for_prompt(
         topk_logits=topk_logits,
         step_mask=step_mask,
         text_sequences=text_sequences,
+        text_per_step=text_per_step_transposed,
         attention_weights=attention_weights,
         meta=meta,
     )
