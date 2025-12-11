@@ -131,7 +131,7 @@ from protoInterpretation import project_step_embeddings, compute_global_umap
 proj = project_step_embeddings(batch, step=10)
 
 # Compute global UMAP over multiple runs and all steps
-embeddings_2d, run_labels, step_labels = compute_global_umap(emb_per_run)
+embeddings_2d, run_labels, step_labels, chain_indices = compute_global_umap(emb_per_run)
 ```
 
 ---
@@ -229,7 +229,7 @@ for step in [0, 10, 20, -1]:
 emb_per_run, min_T, D = load_embeddings_from_runs(["run1", "run2", "run3"], runs)
 
 # Compute global UMAP
-embeddings_2d, run_labels, step_labels = compute_global_umap(emb_per_run)
+embeddings_2d, run_labels, step_labels, chain_indices = compute_global_umap(emb_per_run)
 
 # Create animation
 fig = plot_animated_umap(

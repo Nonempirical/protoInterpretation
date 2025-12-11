@@ -173,7 +173,7 @@ def compute_global_umap(
     umap_n_neighbors: int = 30,
     umap_min_dist: float = 0.1,
     umap_random_state: int = 0,
-) -> Tuple[np.ndarray, List[str], List[int]]:
+) -> Tuple[np.ndarray, List[str], List[int], np.ndarray]:
     """
     Compute a global UMAP projection over all steps and all runs.
     This creates a unified embedding space for animation.
@@ -191,6 +191,7 @@ def compute_global_umap(
             - 2D embeddings [total_points, 2]
             - Run labels [total_points] (list of run names)
             - Step labels [total_points] (list of step indices)
+            - Chain indices [total_points] (numpy array of chain indices 0..N-1)
     """
     if umap is None:
         raise ImportError("umap-learn is required for global UMAP computation")
@@ -207,14 +208,17 @@ def compute_global_umap(
     all_chunks = []
     run_labels = []
     step_labels = []
+    chain_labels = []
     
     for name, emb in embeddings_per_run.items():
         N, T, D_ = emb.shape
-        for t in range(min_T):
+        T_use = min(T, min_T)
+        for t in range(T_use):
             E_t = emb[:, t, :]  # [N, D]
             all_chunks.append(E_t)
             run_labels.extend([name] * N)
             step_labels.extend([t] * N)
+            chain_labels.extend(list(range(N)))  # Chain indices 0..N-1
     
     E_flat = np.vstack(all_chunks)  # [sum(N * min_T), D]
     
@@ -231,4 +235,4 @@ def compute_global_umap(
     )
     E_2d = reducer.fit_transform(E_pca)  # [total_points, 2]
     
-    return E_2d, run_labels, step_labels
+    return E_2d, run_labels, step_labels, np.array(chain_labels)
