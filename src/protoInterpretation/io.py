@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Dict, Optional, List, Tuple
+import re
+from datetime import datetime
+from typing import Dict, Optional, List, Tuple, Sequence, Union, Any
 
 import numpy as np
 
-from .data_structures import ChainBatch, PromptSpec, HorizonMetrics
+from .data_structures import ChainBatch, PromptSpec, HorizonMetrics, SamplingConfig
 from .analysis import compute_horizon_metrics
 
 
@@ -356,4 +358,150 @@ def save_metrics_json(
     # Save to JSON
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(metrics_data, f, indent=2, ensure_ascii=False)
+
+
+# -------------------------
+# Colab/workflow helpers
+# -------------------------
+
+def slugify_prompt(text: str, max_len: int = 60) -> str:
+    """
+    Convert a free-form prompt to a filename-safe slug.
+
+    Example:
+        "The bat is in :" -> "the_bat_is_in"
+    """
+    s = text.strip().lower()
+    s = re.sub(r"[^a-z0-9]+", "_", s)  # non-alnum -> _
+    s = re.sub(r"_+", "_", s).strip("_")  # collapse + trim
+    return (s[:max_len].rstrip("_")) or "empty_prompt"
+
+
+def run_name_to_display(run_name: str) -> str:
+    """
+    Convert a run folder name to a human-readable title.
+
+    Example:
+        "a_man_saw_20251218_115918" -> "A man saw"
+    """
+    clean = re.sub(r"_\d{8}_\d{6}$", "", run_name)  # strip "_YYYYMMDD_HHMMSS"
+    clean = clean.replace("_", " ")
+    return clean.capitalize()
+
+
+def run_name_to_filename(run_name: str, max_len: int = 30) -> str:
+    """
+    Convert a run folder name to a shorter filename-safe stem.
+
+    Example:
+        "the_declaration_of_independence_formally_20251219_100654"
+        -> "the_declaration_of_independ"
+    """
+    clean = re.sub(r"_\d{8}_\d{6}$", "", run_name)
+    clean = re.sub(r"[^a-zA-Z0-9_]+", "_", clean).strip("_")
+    if len(clean) > max_len:
+        clean = clean[:max_len].rstrip("_")
+    return clean or "run"
+
+
+def save_horizon_run(
+    base_run_dir: str,
+    run_name: str,
+    batch: ChainBatch,
+    metrics: HorizonMetrics,
+    timestamp: Optional[str] = None,
+) -> str:
+    """
+    Save a single run directory containing:
+      - batch.npz (numeric arrays)
+      - metrics.json (metrics + meta)
+
+    Returns:
+        The created run directory path.
+    """
+    os.makedirs(base_run_dir, exist_ok=True)
+
+    ts = timestamp or datetime.now().strftime("%Y%m%d_%H%M%S")
+    run_id = f"{run_name}_{ts}"
+    run_dir = os.path.join(base_run_dir, run_id)
+    os.makedirs(run_dir, exist_ok=True)
+
+    save_batch_npz(batch, os.path.join(run_dir, "batch.npz"))
+    save_metrics_json(metrics, os.path.join(run_dir, "metrics.json"), batch_meta=batch.meta)
+
+    return run_dir
+
+
+def save_horizon_run_from_prompt(
+    base_run_dir: str,
+    prompt_text: str,
+    batch: ChainBatch,
+    metrics: HorizonMetrics,
+    prompt_slug_max_len: int = 60,
+    timestamp: Optional[str] = None,
+) -> str:
+    """
+    Save a run directory name derived from the prompt text.
+
+    Example folder name:
+        "photosynthesis_is_20251219_174237"
+    """
+    slug = slugify_prompt(prompt_text, max_len=prompt_slug_max_len)
+    return save_horizon_run(
+        base_run_dir=base_run_dir,
+        run_name=slug,
+        batch=batch,
+        metrics=metrics,
+        timestamp=timestamp,
+    )
+
+
+def run_prompts_and_save(
+    model: Any,
+    prompts: Sequence[Union[str, PromptSpec]],
+    cfg: SamplingConfig,
+    base_run_dir: str,
+    prompt_slug_max_len: int = 60,
+    cluster_n: int = 8,
+) -> Dict[str, str]:
+    """
+    Convenience workflow:
+      sample -> compute metrics -> save run folder for each prompt.
+
+    Returns:
+        Dict mapping run_id -> run_dir
+    """
+    # Local import to avoid heavy imports at module import-time
+    from .sampling import sample_chains_for_prompt
+
+    saved: Dict[str, str] = {}
+    for p in prompts:
+        prompt_text = p.text if isinstance(p, PromptSpec) else str(p)
+        batch = sample_chains_for_prompt(model, p, cfg)
+        metrics = compute_horizon_metrics(batch, cluster_n=cluster_n)
+        run_dir = save_horizon_run_from_prompt(
+            base_run_dir=base_run_dir,
+            prompt_text=prompt_text,
+            batch=batch,
+            metrics=metrics,
+            prompt_slug_max_len=prompt_slug_max_len,
+        )
+        saved[os.path.basename(run_dir)] = run_dir
+    return saved
+
+
+def summarize_signature(name: str, sig: Any) -> None:
+    """
+    Print a short summary of an OpennessSignature-like object.
+    (Designed to match common Colab usage.)
+    """
+    print(f"=== {name} ===")
+    print(f"Mean entropy:         {sig.mean_entropy:.3f}")
+    print(f"Mean horizon width:   {sig.mean_horizon_width:.3f}")
+    print(f"Mean linearity R²:    {sig.mean_linearity_r2:.3f}")
+    if getattr(sig, "mean_symmetric_kl", None) is not None:
+        print(f"Mean symmetric KL:    {sig.mean_symmetric_kl:.3f}")
+    if getattr(sig, "num_clusters", None) is not None:
+        print(f"# clusters (KMeans):  {sig.num_clusters}")
+    print()
 

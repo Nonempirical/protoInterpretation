@@ -22,6 +22,21 @@ class PCAResult:
     embeddings: np.ndarray  # [N, D_pca]
 
 
+def _l2_normalize_rows(X: np.ndarray, eps: float = 1e-12) -> np.ndarray:
+    """
+    L2-normalize rows of X (safe for cosine-aligned workflows).
+
+    Notes:
+    - If vectors are unit-norm, Euclidean distance is monotonic with cosine distance:
+      ||u - v||^2 = 2(1 - cos(u, v))
+    - PCA breaks unit norms, so if you normalize before PCA and care about cosine-like geometry,
+      you usually also normalize again after PCA.
+    """
+    X = np.asarray(X)
+    norms = np.linalg.norm(X, axis=1, keepdims=True)
+    return X / (norms + eps)
+
+
 def fit_pca(
     X: np.ndarray,
     n_components: int = 50,
@@ -100,11 +115,24 @@ def project_step_embeddings(
     pca_components: int = 50,
     umap_n_neighbors: int = 30,
     umap_min_dist: float = 0.1,
-    umap_random_state: int = 0,
+    umap_random_state: int = 42,
+    l2_normalize: bool = False,
+    umap_metric: str = "cosine",
 ) -> ProjectionResult:
     """
     Project the embeddings at a single step t into PCA space (for analysis)
     and UMAP 2D space (for visualization).
+
+    Args:
+        batch: ChainBatch with embeddings [N, T, D]
+        step: Which generation step to project (default: -1 for last)
+        pca_components: PCA dimensionality before UMAP
+        umap_n_neighbors: UMAP n_neighbors
+        umap_min_dist: UMAP min_dist
+        umap_random_state: UMAP random_state
+        l2_normalize: If True, L2-normalize vectors before PCA and again after PCA.
+            Usually unnecessary if you set umap_metric="cosine".
+        umap_metric: UMAP distance metric (default: "cosine").
 
     Returns a ProjectionResult containing:
       - base_embeddings: [N, D] original embeddings at step t
@@ -121,10 +149,14 @@ def project_step_embeddings(
         raise ValueError(f"step {step} out of range [0, {T})")
 
     base = embeddings[:, step, :]  # [N, D]
+    if l2_normalize:
+        base = _l2_normalize_rows(base)
 
     # PCA to mid-dimensional space
     pca_res = fit_pca(base, n_components=pca_components)
     pca_emb = pca_res.embeddings  # [N, D_pca]
+    if l2_normalize:
+        pca_emb = _l2_normalize_rows(pca_emb)
 
     if umap is None:
         # UMAP not available; just return PCA and diagnostics based on PCA vs original
@@ -145,6 +177,7 @@ def project_step_embeddings(
         min_dist=umap_min_dist,
         n_components=2,
         random_state=umap_random_state,
+        metric=umap_metric,
     )
     viz_2d = umap_model.fit_transform(pca_emb)  # [N, 2]
 
@@ -162,6 +195,8 @@ def project_step_embeddings(
             "pca_components": pca_components,
             "umap_n_neighbors": umap_n_neighbors,
             "umap_min_dist": umap_min_dist,
+            "l2_normalize": l2_normalize,
+            "umap_metric": umap_metric,
         },
     )
 
@@ -172,7 +207,9 @@ def compute_global_umap(
     pca_components: int = 50,
     umap_n_neighbors: int = 30,
     umap_min_dist: float = 0.1,
-    umap_random_state: int = 0,
+    umap_random_state: int = 42,
+    l2_normalize: bool = False,
+    umap_metric: str = "cosine",
 ) -> Tuple[np.ndarray, List[str], List[int], np.ndarray]:
     """
     Compute a global UMAP projection over all steps and all runs.
@@ -185,6 +222,9 @@ def compute_global_umap(
         umap_n_neighbors: UMAP n_neighbors parameter
         umap_min_dist: UMAP min_dist parameter
         umap_random_state: Random state for reproducibility
+        l2_normalize: If True, L2-normalize before PCA and again after PCA.
+            Typically not needed if umap_metric="cosine".
+        umap_metric: UMAP metric (default: "cosine").
     
     Returns:
         Tuple of:
@@ -221,17 +261,23 @@ def compute_global_umap(
             chain_labels.extend(list(range(N)))  # Chain indices 0..N-1
     
     E_flat = np.vstack(all_chunks)  # [sum(N * min_T), D]
+    if l2_normalize:
+        E_flat = _l2_normalize_rows(E_flat)
     
     # PCA + UMAP
     n_pca = min(pca_components, D, E_flat.shape[0])
     pca = PCA(n_components=n_pca, random_state=0)
     E_pca = pca.fit_transform(E_flat)
+    if l2_normalize:
+        # PCA breaks unit norms; renormalize for cosine-aligned Euclidean UMAP
+        E_pca = _l2_normalize_rows(E_pca)
     
     reducer = umap.UMAP(
         n_neighbors=umap_n_neighbors,
         min_dist=umap_min_dist,
         n_components=2,
         random_state=umap_random_state,
+        metric=umap_metric,
     )
     E_2d = reducer.fit_transform(E_pca)  # [total_points, 2]
     

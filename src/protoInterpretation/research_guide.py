@@ -140,13 +140,22 @@ embeddings_2d, run_labels, step_labels, chain_indices = compute_global_umap(emb_
 
 ### Time-Series Plots
 ```python
-from protoInterpretation import plot_entropy_curve, plot_horizon_width
+from protoInterpretation import (
+    plot_entropy_curve,
+    plot_horizon_width,
+    plot_entropy_comparison,
+    plot_horizon_width_comparison,
+)
 
 # Plot entropy over time
 plot_entropy_curve(metrics)
 
-# Plot horizon width over time
+# Plot horizon width over time (Mean / P95 / Max)
 plot_horizon_width(metrics)
+
+# Compare multiple runs on one axis
+plot_entropy_comparison(metrics_per_run, labels=display_names)
+plot_horizon_width_comparison(metrics_per_run, labels=display_names)
 ```
 
 ### 2D Scatter Plots
@@ -155,6 +164,25 @@ from protoInterpretation import plot_step_scatter_2d
 
 # Plot 2D projection at a step
 plot_step_scatter_2d(proj, labels=metrics.clusters.labels)
+```
+
+### Global UMAP Facets (Matplotlib)
+```python
+from protoInterpretation import compute_global_umap, plot_global_umap_facets_by_step
+
+E_2d, run_labels, step_labels, chain_indices = compute_global_umap(emb_per_run)
+plot_global_umap_facets_by_step(E_2d, run_labels, step_labels, labels=display_names)
+```
+
+### Final-step UMAP across runs (Matplotlib)
+```python
+from protoInterpretation import plot_final_step_umap_across_runs
+
+fig, ax, E_2d, run_labels, chain_indices = plot_final_step_umap_across_runs(
+    emb_per_run,
+    labels=display_names,
+    step=-1,
+)
 ```
 
 ### Comparison Plots
@@ -273,13 +301,21 @@ print(f"Number of Clusters: {signature.num_clusters}")
 ## 💾 Saving Data
 
 ```python
-from protoInterpretation import save_batch_npz, save_metrics_json
+from protoInterpretation import (
+    save_batch_npz,
+    save_metrics_json,
+    run_prompts_and_save,
+    save_horizon_run_from_prompt,
+)
 
 # Save batch (numeric data only)
 save_batch_npz(batch, "path/to/batch.npz")
 
 # Save metrics (with metadata)
 save_metrics_json(metrics, "path/to/metrics.json", batch_meta=batch.meta)
+
+# Convenience: sample -> compute -> save per prompt
+saved = run_prompts_and_save(model, prompts, cfg, base_run_dir="path/to/runs")
 ```
 
 ---
@@ -300,9 +336,9 @@ save_metrics_json(metrics, "path/to/metrics.json", batch_meta=batch.meta)
 
 **Analyze**: `compute_horizon_metrics`, `project_step_embeddings`, `compute_global_umap`
 
-**Visualize**: `plot_entropy_curve`, `plot_horizon_width`, `plot_step_scatter_2d`, `plot_metrics_comparison`, `plot_projections_comparison`, `plot_joint_umap`, `plot_animated_umap`, `compare_runs`
+**Visualize**: `plot_entropy_curve`, `plot_horizon_width`, `plot_entropy_comparison`, `plot_horizon_width_comparison`, `plot_final_step_umap_across_runs`, `plot_global_umap_facets_by_step`, `plot_step_scatter_2d`, `plot_metrics_comparison`, `plot_projections_comparison`, `plot_joint_umap`, `plot_animated_umap`, `compare_runs`
 
-**Save**: `save_batch_npz`, `save_metrics_json`
+**Save**: `save_batch_npz`, `save_metrics_json`, `save_horizon_run`, `save_horizon_run_from_prompt`, `run_prompts_and_save`
 
 ---
 

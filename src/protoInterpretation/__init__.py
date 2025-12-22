@@ -5,6 +5,12 @@ from .projections import project_step_embeddings, compute_global_umap
 from .viz import (
     plot_entropy_curve,
     plot_horizon_width,
+    plot_entropy_comparison,
+    plot_horizon_width_comparison,
+    plot_final_step_umap_across_runs,
+    plot_global_umap_facets_by_step,
+    save_figures,
+    save_open_figures,
     plot_step_scatter_2d,
     plot_metrics_comparison,
     plot_projections_comparison,
@@ -20,6 +26,13 @@ from .io import (
     load_embeddings_from_runs,
     save_batch_npz,
     save_metrics_json,
+    slugify_prompt,
+    run_name_to_display,
+    run_name_to_filename,
+    save_horizon_run,
+    save_horizon_run_from_prompt,
+    run_prompts_and_save,
+    summarize_signature,
 )
 from .comparison import compare_runs
 from .research_guide import print_research_guide
