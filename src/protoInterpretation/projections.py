@@ -115,9 +115,9 @@ def project_step_embeddings(
     pca_components: int = 50,
     umap_n_neighbors: int = 30,
     umap_min_dist: float = 0.1,
-    umap_random_state: int = 42,
+    umap_random_state: int = 0,
     l2_normalize: bool = False,
-    umap_metric: str = "cosine",
+    umap_metric: str = "euclidean",
 ) -> ProjectionResult:
     """
     Project the embeddings at a single step t into PCA space (for analysis)
@@ -131,8 +131,8 @@ def project_step_embeddings(
         umap_min_dist: UMAP min_dist
         umap_random_state: UMAP random_state
         l2_normalize: If True, L2-normalize vectors before PCA and again after PCA.
-            Usually unnecessary if you set umap_metric="cosine".
-        umap_metric: UMAP distance metric (default: "cosine").
+            This makes Euclidean UMAP more consistent with cosine-distance analyses.
+        umap_metric: UMAP distance metric (default: "euclidean").
 
     Returns a ProjectionResult containing:
       - base_embeddings: [N, D] original embeddings at step t
@@ -207,9 +207,9 @@ def compute_global_umap(
     pca_components: int = 50,
     umap_n_neighbors: int = 30,
     umap_min_dist: float = 0.1,
-    umap_random_state: int = 42,
-    l2_normalize: bool = False,
-    umap_metric: str = "cosine",
+    umap_random_state: int = 0,
+    l2_normalize: bool = True,
+    umap_metric: str = "euclidean",
 ) -> Tuple[np.ndarray, List[str], List[int], np.ndarray]:
     """
     Compute a global UMAP projection over all steps and all runs.
@@ -223,8 +223,8 @@ def compute_global_umap(
         umap_min_dist: UMAP min_dist parameter
         umap_random_state: Random state for reproducibility
         l2_normalize: If True, L2-normalize before PCA and again after PCA.
-            Typically not needed if umap_metric="cosine".
-        umap_metric: UMAP metric (default: "cosine").
+            Recommended when you interpret geometry using cosine distances.
+        umap_metric: UMAP metric (default: "euclidean").
     
     Returns:
         Tuple of:
